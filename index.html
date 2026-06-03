@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Sistema de Evaluación Médica - Parciales Digitales">
+<title>MedEval — Sistema de Evaluación Médica</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- DEV TOOLS WARNING -->
+<div class="dev-tools-warning" id="devWarning">
+  <div class="warn-icon">🔒</div>
+  <div class="warn-title">Acceso Bloqueado</div>
+  <p class="warn-msg">Se detectó un intento de acceso a herramientas del sistema. Por razones de seguridad académica, esta sesión ha sido suspendida. Contacta a tu docente.</p>
+</div>
+
+<!-- FULLSCREEN REQUEST OVERLAY -->
+<div id="fsRequestOverlay" style="display:none;position:fixed;inset:0;background:#0a0f1e;z-index:99998;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:2rem;">
+  <div style="font-size:64px;margin-bottom:1.5rem;">🖥️</div>
+  <div style="font-family:'DM Serif Display',serif;font-size:30px;margin-bottom:1rem;color:#e8edf8;">Modo Examen Seguro</div>
+  <p style="font-size:16px;color:#8a9bc8;max-width:480px;line-height:1.7;margin-bottom:2rem;">Para continuar con el examen, el sistema requiere que actives <strong style="color:#e8edf8;">pantalla completa</strong>. Esto impide el acceso a otras pestañas y aplicaciones durante la evaluación.</p>
+  <button id="fsEnterBtn" style="padding:14px 36px;background:linear-gradient(135deg,#4f8ef7,#7c5cfc);border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;">⛶ Activar Pantalla Completa e Iniciar</button>
+  <p style="margin-top:1.25rem;font-size:13px;color:#4a5a88;">Si el botón no funciona, presiona <kbd style="background:#1a2240;border:1px solid rgba(100,140,255,.3);padding:2px 7px;border-radius:4px;color:#8a9bc8;">F11</kbd> en tu teclado</p>
+</div>
+
+<!-- FULLSCREEN EXIT WARNING -->
+<div id="fsExitWarning" style="display:none;position:fixed;inset:0;background:rgba(10,15,30,0.97);z-index:99998;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:2rem;">
+  <div style="font-size:64px;margin-bottom:1.5rem;">⚠️</div>
+  <div style="font-family:'DM Serif Display',serif;font-size:30px;margin-bottom:1rem;color:#f05c7a;">¡Saliste de Pantalla Completa!</div>
+  <p style="font-size:16px;color:#8a9bc8;max-width:500px;line-height:1.7;margin-bottom:1rem;">Salir de pantalla completa durante el examen <strong style="color:#f05c7a;">queda registrado</strong>. Debes volver a pantalla completa para continuar.</p>
+  <div id="fsExitCounter" style="font-size:14px;color:#f5a623;margin-bottom:1.5rem;padding:8px 18px;background:rgba(245,166,35,0.1);border-radius:8px;border:1px solid rgba(245,166,35,0.25);"></div>
+  <button id="fsReturnBtn" style="padding:14px 36px;background:linear-gradient(135deg,#f05c7a,#f5a623);border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;">↩ Volver a Pantalla Completa</button>
+  <p style="margin-top:1rem;font-size:12px;color:#4a5a88;">Si acumulas 3 salidas, el examen será suspendido automáticamente.</p>
+</div>
+
+<!-- WATERMARK (exam mode) -->
+<div class="watermark-overlay" id="watermarkOverlay" style="display:none"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL (Resultados detalle) -->
+<div class="modal-bg" id="reviewModal">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-h">Revisión del Examen</div>
+    <div class="modal-sub">Análisis detallado de respuestas</div>
+    <div id="reviewContent"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- TOPBAR -->
+  <div class="topbar" id="topbar">
+    <div class="logo">
+      <div class="logo-icon">⚕</div>
+      MedEval
+    </div>
+    <nav class="nav" id="mainNav">
+      <button class="nav-btn active" onclick="showSection('home')">Inicio</button>
+      <button class="nav-btn" onclick="showSection('docente-login')">Docente</button>
+      <button class="nav-btn" onclick="showSection('estudiante-login')">Estudiante</button>
+    </nav>
+    <div class="topbar-right" id="userArea" style="display:none">
+      <div class="user-pill"><div class="user-dot"></div><span id="userNamePill">—</span></div>
+      <button class="btn-logout" onclick="logout()">Salir</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="mainContent">
+
+    <!-- ====== HOME ====== -->
+    <div class="screen active" id="screen-home">
+      <div class="hero">
+        <h1>Sistema de Evaluación<br>Médica Digital</h1>
+        <p>Plataforma segura para aplicación de parciales en Medicina. Control total del docente, experiencia fluida para el estudiante.</p>
+        <div class="hero-cards">
+          <div class="hero-card blue" onclick="showSection('docente-login')">
+            <div class="card-icon">👨‍⚕️</div>
+            <div class="card-title">Portal Docente</div>
+            <div class="card-desc">Gestiona preguntas, grupos y visualiza resultados en tiempo real.</div>
+          </div>
+          <div class="hero-card purple" onclick="showSection('estudiante-login')">
+            <div class="card-icon">🎓</div>
+            <div class="card-title">Portal Estudiante</div>
+            <div class="card-desc">Presenta tus parciales de forma segura y revisa tu desempeño.</div>
+          </div>
+          <div class="hero-card teal">
+            <div class="card-icon">🔐</div>
+            <div class="card-title">Seguridad Académica</div>
+            <div class="card-desc">Anti-captura, anti-copia y marca de agua dinámica en cada sesión.</div>
+          </div>
+        </div>
+        <div class="stats-bar">
+          <div class="stat"><div class="stat-num">4</div><div class="stat-label">Grupos activos</div></div>
+          <div class="stat"><div class="stat-num">87</div><div class="stat-label">Estudiantes</div></div>
+          <div class="stat"><div class="stat-num">120+</div><div class="stat-label">Preguntas en banco</div></div>
+          <div class="stat"><div class="stat-num">98%</div><div class="stat-label">Disponibilidad</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== LOGIN DOCENTE ====== -->
+    <div class="screen" id="screen-docente-login">
+      <div class="login-wrap">
+        <div class="login-box">
+          <div class="login-role">Portal Docente</div>
+          <div class="login-title">Bienvenido</div>
+          <div class="login-sub">Accede para gestionar preguntas, grupos y evaluar resultados.</div>
+          <div class="error-msg" id="docErr">Credenciales incorrectas. Intenta de nuevo.</div>
+          <div class="form-group">
+            <label class="form-label">Correo institucional</label>
+            <input class="form-input" type="email" id="docEmail" placeholder="docente@universidad.edu" onkeydown="if(event.key==='Enter')loginDocente()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña</label>
+            <input class="form-input" type="password" id="docPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginDocente()">
+          </div>
+          <button class="btn-primary" onclick="loginDocente()">Ingresar al panel</button>
+          <div class="login-hint">¿Eres estudiante? <span onclick="showSection('estudiante-login')">Portal Estudiante →</span></div>
+          <div style="margin-top:1.25rem;padding:10px 14px;background:rgba(79,142,247,0.08);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.6">
+            <strong style="color:var(--accent)">Demo:</strong> doctor@med.edu / docente123<br>
+            <strong style="color:var(--accent)">Coordinador:</strong> coord@med.edu / coord2024
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== LOGIN ESTUDIANTE ====== -->
+    <div class="screen" id="screen-estudiante-login">
+      <div class="login-wrap">
+        <div class="login-box">
+          <div class="login-role" style="color:var(--accent2)">Portal Estudiante</div>
+          <div class="login-title">Acceder al Examen</div>
+          <div class="login-sub">Usa tu código de identificación estudiantil para ingresar.</div>
+          <div class="error-msg" id="estErr">Código o contraseña incorrectos.</div>
+          <div class="form-group">
+            <label class="form-label">Código estudiantil</label>
+            <input class="form-input" type="text" id="estCodigo" placeholder="Ej: EST-2024-001" onkeydown="if(event.key==='Enter')loginEstudiante()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña</label>
+            <input class="form-input" type="password" id="estPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginEstudiante()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grupo al que perteneces</label>
+            <select class="form-select" id="estGrupo">
+              <option value="">Selecciona tu grupo...</option>
+              <option value="A">Grupo A — Medicina General I</option>
+              <option value="B">Grupo B — Anatomía Clínica</option>
+              <option value="C">Grupo C — Fisiología Básica</option>
+              <option value="D">Grupo D — Patología Molecular</option>
+            </select>
+          </div>
+          <button class="btn-primary" style="background:linear-gradient(135deg,var(--accent2),#a855f7)" onclick="loginEstudiante()">Iniciar examen</button>
+          <div class="login-hint">¿Eres docente? <span onclick="showSection('docente-login')">Portal Docente →</span></div>
+          <div style="margin-top:1.25rem;padding:10px 14px;background:rgba(124,92,252,0.08);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.6">
+            <strong style="color:var(--accent2)">Demo:</strong> EST-2024-001 / est123 → Grupo A<br>
+            <strong style="color:var(--accent2)">Demo:</strong> EST-2024-002 / est123 → Grupo B
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== PANEL DOCENTE ====== -->
+    <div class="screen" id="screen-docente">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Panel Docente</div>
+          <div class="page-sub" id="docenteNombreLabel">Cargando...</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('tab-preguntas')">📝 Banco de Preguntas</button>
+        <button class="tab" onclick="showTab('tab-grupos')">👥 Grupos</button>
+        <button class="tab" onclick="showTab('tab-resultados')">📊 Resultados</button>
+        <button class="tab" onclick="showTab('tab-config')">⚙️ Configurar Examen</button>
+      </div>
+
+      <!-- TAB: BANCO DE PREGUNTAS -->
+      <div class="tab-content active" id="tab-preguntas">
+        <div class="grid-2">
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-h">Nueva Pregunta</div>
+                <span class="badge badge-blue">Añadir al banco</span>
+              </div>
+              <div class="question-form">
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Grupo destino</label>
+                  <select class="form-select" id="nuevoPregGrupo">
+                    <option value="A">Grupo A — Medicina General I</option>
+                    <option value="B">Grupo B — Anatomía Clínica</option>
+                    <option value="C">Grupo C — Fisiología Básica</option>
+                    <option value="D">Grupo D — Patología Molecular</option>
+                    <option value="TODOS">Todos los grupos</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Enunciado de la pregunta</label>
+                  <textarea class="form-input" id="nuevoPregTexto" rows="3" style="resize:vertical" placeholder="Escribe el enunciado clínico o teórico..."></textarea>
+                </div>
+                <div>
+                  <label class="form-label" style="margin-bottom:8px">Opciones de respuesta <small style="color:var(--text3)">(marca la correcta)</small></label>
+                  <div style="display:flex;flex-direction:column;gap:8px" id="optionsContainer">
+                    <div class="option-row">
+                      <input type="radio" name="correcta" value="0" id="r0">
+                      <div class="option-label" id="lbl0">A</div>
+                      <input class="form-input" style="flex:1;padding:8px 12px" id="opt0" placeholder="Opción A">
+                    </div>
+                    <div class="option-row">
+                      <input type="radio" name="correcta" value="1" id="r1">
+                      <div class="option-label" id="lbl1">B</div>
+                      <input class="form-input" style="flex:1;padding:8px 12px" id="opt1" placeholder="Opción B">
+                    </div>
+                    <div class="option-row">
+                      <input type="radio" name="correcta" value="2" id="r2">
+                      <div class="option-label" id="lbl2">C</div>
+                      <input class="form-input" style="flex:1;padding:8px 12px" id="opt2" placeholder="Opción C">
+                    </div>
+                    <div class="option-row">
+                      <input type="radio" name="correcta" value="3" id="r3">
+                      <div class="option-label" id="lbl3">D</div>
+                      <input class="form-input" style="flex:1;padding:8px 12px" id="opt3" placeholder="Opción D">
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Categoría / Tema</label>
+                  <input class="form-input" id="nuevoPregCategoria" placeholder="Ej: Cardiología, Anatomía...">
+                </div>
+                <button class="btn-sm btn-success" style="width:100%;padding:11px" onclick="guardarPregunta()">✚ Guardar Pregunta</button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-h">Banco de Preguntas</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <select class="form-select" style="width:auto;padding:6px 10px;font-size:13px" id="filtroGrupoPreg" onchange="renderBancoPreguntas()">
+                    <option value="TODOS">Todos</option>
+                    <option value="A">Grupo A</option>
+                    <option value="B">Grupo B</option>
+                    <option value="C">Grupo C</option>
+                    <option value="D">Grupo D</option>
+                  </select>
+                </div>
+              </div>
+              <div class="question-list" id="bancoLista" style="max-height:520px;overflow-y:auto"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: GRUPOS -->
+      <div class="tab-content" id="tab-grupos">
+        <div class="group-grid" id="groupsGrid"></div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-h" id="groupDetailTitle">Selecciona un grupo para ver estudiantes</div>
+            <span class="badge badge-blue" id="groupDetailBadge"></span>
+          </div>
+          <div id="groupStudentsList">
+            <p style="color:var(--text3);font-size:14px;padding:1rem 0">Haz clic en un grupo para ver sus estudiantes.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: RESULTADOS -->
+      <div class="tab-content" id="tab-resultados">
+        <div class="stats-row" id="statsRow"></div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-h">Resultados por Estudiante</div>
+            <select class="form-select" style="width:auto;padding:7px 12px;font-size:13px" id="filtroGrupoRes" onchange="renderResultados()">
+              <option value="TODOS">Todos los grupos</option>
+              <option value="A">Grupo A</option>
+              <option value="B">Grupo B</option>
+              <option value="C">Grupo C</option>
+              <option value="D">Grupo D</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="student-table" id="resultadosTable">
+              <thead>
+                <tr>
+                  <th>Estudiante</th><th>Grupo</th><th>Puntaje</th><th>Correctas</th><th>Estado</th><th>Progreso</th><th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="resultadosTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: CONFIG EXAMEN -->
+      <div class="tab-content" id="tab-config">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-h">Configuración del Examen</div></div>
+            <div style="display:flex;flex-direction:column;gap:1rem">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Grupo objetivo</label>
+                <select class="form-select" id="configGrupo">
+                  <option value="A">Grupo A — Medicina General I</option>
+                  <option value="B">Grupo B — Anatomía Clínica</option>
+                  <option value="C">Grupo C — Fisiología Básica</option>
+                  <option value="D">Grupo D — Patología Molecular</option>
+                  <option value="TODOS">Todos los grupos</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Número de preguntas por examen</label>
+                <input class="form-input" type="number" id="configNumPreg" value="10" min="5" max="50">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Tiempo límite (minutos)</label>
+                <input class="form-input" type="number" id="configTiempo" value="45" min="10" max="180">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Nota mínima aprobatoria (%)</label>
+                <input class="form-input" type="number" id="configNotaMin" value="60" min="40" max="90">
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border-radius:8px">
+                <input type="checkbox" id="configAleatorio" checked style="accent-color:var(--accent);width:16px;height:16px">
+                <label for="configAleatorio" style="font-size:14px;cursor:pointer">Orden aleatorio de preguntas</label>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border-radius:8px">
+                <input type="checkbox" id="configSeguridad" checked style="accent-color:var(--accent);width:16px;height:16px">
+                <label for="configSeguridad" style="font-size:14px;cursor:pointer">Activar medidas de seguridad</label>
+              </div>
+              <button class="btn-primary" onclick="guardarConfig()">Guardar Configuración</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-h">Medidas de Seguridad Activas</div><span class="badge badge-green">✓ Activas</span></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:10px;padding:12px;background:rgba(45,212,160,0.06);border:1px solid rgba(45,212,160,0.2);border-radius:8px">
+                <span>🔒</span>
+                <div><div style="font-size:14px;font-weight:600;color:var(--success)">Bloqueo de copiar/pegar</div><div style="font-size:12px;color:var(--text2);margin-top:3px">Ctrl+C, Ctrl+V, clic derecho deshabilitados en modo examen</div></div>
+              </div>
+              <div style="display:flex;gap:10px;padding:12px;background:rgba(45,212,160,0.06);border:1px solid rgba(45,212,160,0.2);border-radius:8px">
+                <span>🖼</span>
+                <div><div style="font-size:14px;font-weight:600;color:var(--success)">Marca de agua dinámica</div><div style="font-size:12px;color:var(--text2);margin-top:3px">Nombre del estudiante e ID impreso sobre el contenido</div></div>
+              </div>
+              <div style="display:flex;gap:10px;padding:12px;background:rgba(45,212,160,0.06);border:1px solid rgba(45,212,160,0.2);border-radius:8px">
+                <span>📋</span>
+                <div><div style="font-size:14px;font-weight:600;color:var(--success)">Anti-selección de texto</div><div style="font-size:12px;color:var(--text2);margin-top:3px">Imposible seleccionar o arrastrar preguntas y opciones</div></div>
+              </div>
+              <div style="display:flex;gap:10px;padding:12px;background:rgba(45,212,160,0.06);border:1px solid rgba(45,212,160,0.2);border-radius:8px">
+                <span>🖨</span>
+                <div><div style="font-size:14px;font-weight:600;color:var(--success)">Bloqueo de impresión</div><div style="font-size:12px;color:var(--text2);margin-top:3px">Ctrl+P y menú imprimir deshabilitados</div></div>
+              </div>
+              <div style="display:flex;gap:10px;padding:12px;background:rgba(245,166,35,0.06);border:1px solid rgba(245,166,35,0.2);border-radius:8px">
+                <span>⚠️</span>
+                <div><div style="font-size:14px;font-weight:600;color:var(--warn)">Alerta DevTools</div><div style="font-size:12px;color:var(--text2);margin-top:3px">Detecta herramientas de desarrollador y suspende el examen</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- end screen-docente -->
+
+    <!-- ====== PANEL ESTUDIANTE (EXAMEN) ====== -->
+    <div class="screen exam-content" id="screen-estudiante">
+      <div class="exam-wrap">
+        <!-- Exam in progress -->
+        <div id="examView">
+          <div class="exam-topbar">
+            <div class="exam-info">
+              Parcial: <strong id="examNombreEst">—</strong> &nbsp;|&nbsp; Grupo: <strong id="examGrupoEst">—</strong>
+            </div>
+            <div class="timer-box">
+              <div class="timer-dot"></div>
+              <span id="timerDisplay">45:00</span>
+            </div>
+          </div>
+          <div class="exam-progress">
+            <div class="progress-label">
+              <span>Pregunta <span id="qActual">1</span> de <span id="qTotal">10</span></span>
+              <span id="qRespondidas">0 respondidas</span>
+            </div>
+            <div class="progress-bar2"><div class="progress-fill2" id="examProgressBar" style="width:0%"></div></div>
+          </div>
+          <div class="question-card">
+            <div class="q-number" id="qNumLabel">PREGUNTA 01</div>
+            <div class="q-body" id="qBody">Cargando pregunta...</div>
+            <div class="options-list" id="optionsList"></div>
+          </div>
+          <div class="exam-nav">
+            <button class="btn-nav" onclick="navQuestion(-1)" id="btnAnterior">← Anterior</button>
+            <div style="display:flex;gap:8px" id="dotNav"></div>
+            <button class="btn-nav primary-nav" onclick="navQuestion(1)" id="btnSiguiente">Siguiente →</button>
+          </div>
+        </div>
+        <!-- Results -->
+        <div id="resultsView" style="display:none">
+          <div class="results-card">
+            <div class="results-score" id="resScore" style="color:var(--success)">—</div>
+            <div class="results-title" id="resTitle">Examen Completado</div>
+            <div class="results-sub" id="resSub">Revisa tu desempeño</div>
+            <div class="results-grid">
+              <div class="r-stat"><div class="r-stat-n" id="resCorrectas" style="color:var(--success)">—</div><div class="r-stat-l">Correctas</div></div>
+              <div class="r-stat"><div class="r-stat-n" id="resIncorrectas" style="color:var(--danger)">—</div><div class="r-stat-l">Incorrectas</div></div>
+              <div class="r-stat"><div class="r-stat-n" id="resTiempo" style="color:var(--accent)">—</div><div class="r-stat-l">Tiempo</div></div>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center">
+              <button class="btn-sm btn-accent" onclick="openReview()">Ver revisión detallada</button>
+              <button class="btn-sm btn-success" onclick="logout()">Finalizar sesión</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end main -->
+</div><!-- end app -->
+
+<script>
+// ============================================================
+//  BASE DE DATOS SIMULADA
+// ============================================================
+const DB = {
+  docentes: [
+    {id:'D1', email:'admin', pass:'admin123', nombre:'admin', rol:'Administrador'},
+    {id:'D2', email:'coord@med.edu',  pass:'coord2024',  nombre:'Dra. Camila Torres',  rol:'Coordinadora'}
+    
+  ],
+  estudiantes: [
+    {id:'1015430265', pass:'est123', nombre:'Daniel Lopez',    grupo:'A'},
+    {id:'EST-2024-001', pass:'est123', nombre:'María García',    grupo:'A'},
+    {id:'EST-2024-002', pass:'est123', nombre:'Juan Rodríguez',  grupo:'B'},
+    {id:'EST-2024-003', pass:'est123', nombre:'Laura Martínez',  grupo:'A'},
+    {id:'EST-2024-004', pass:'est123', nombre:'Carlos Pérez',    grupo:'C'},
+    {id:'EST-2024-005', pass:'est123', nombre:'Sofía Hernández', grupo:'D'},
+    {id:'EST-2024-006', pass:'est123', nombre:'Diego López',     grupo:'B'},
+    {id:'EST-2024-007', pass:'est123', nombre:'Valentina Cruz',  grupo:'C'},
+    {id:'EST-2024-008', pass:'est123', nombre:'Andrés Silva',    grupo:'A'},
+    {id:'EST-2024-009', pass:'est123', nombre:'Isabela Gómez',   grupo:'D'},
+    {id:'EST-2024-010', pass:'est123', nombre:'Mateo Díaz',      grupo:'A'},
+  ],
+  grupos: {
+    A: {nombre:'Medicina General I',   descripcion:'Semestre 2024-I'},
+    B: {nombre:'Anatomía Clínica',     descripcion:'Semestre 2024-I'},
+    C: {nombre:'Fisiología Básica',    descripcion:'Semestre 2024-I'},
+    D: {nombre:'Patología Molecular',  descripcion:'Semestre 2024-I'},
+  },
+  preguntas: [
+    // GRUPO A — Medicina General
+    {id:'q1',grupo:'A',categoria:'Cardiología',texto:'¿Cuál de los siguientes NO es un factor de riesgo cardiovascular modificable?',opciones:['Hipertensión arterial','Tabaquismo','Edad avanzada','Dislipidemia'],correcta:2},
+    {id:'q2',grupo:'A',categoria:'Cardiología',texto:'El fármaco de primera línea para el tratamiento de la fibrilación auricular con respuesta ventricular rápida es:',opciones:['Metoprolol','Amiodarona','Digoxina','Adenosina'],correcta:0},
+    {id:'q3',grupo:'A',categoria:'Respiratorio',texto:'¿Qué hallazgo en la radiografía de tórax es PATOGNOMÓNICO de la neumonía lobar derecha?',opciones:['Derrame pleural bilateral','Infiltrado alveolar en lóbulo inferior derecho','Patrón intersticial difuso','Hiperinsuflación pulmonar'],correcta:1},
+    {id:'q4',grupo:'A',categoria:'Farmacología',texto:'Un paciente con hipertensión y diabetes tipo 2 recibe mejor beneficio renoprotector con:',opciones:['Amlodipino','Hidroclorotiazida','Enalapril','Atenolol'],correcta:2},
+    {id:'q5',grupo:'A',categoria:'Urgencias',texto:'El signo de Kehr corresponde a:',opciones:['Dolor en el hombro izquierdo por irritación diafragmática','Rigidez de nuca en meningitis','Dolor epigástrico en úlcera péptica','Hematoma periorbital en fractura de base de cráneo'],correcta:0},
+    {id:'q6',grupo:'A',categoria:'Neurología',texto:'La triada de Cushing ante hipertensión intracraneal incluye:',opciones:['Taquicardia, hipotensión, taquipnea','Bradicardia, hipertensión, bradipnea','Taquicardia, hipertensión, fiebre','Bradicardia, hipotensión, apnea'],correcta:1},
+    {id:'q7',grupo:'A',categoria:'Hematología',texto:'¿En qué tipo de anemia se observa macrocitosis con megaloblastos en la médula ósea?',opciones:['Anemia ferropénica','Anemia hemolítica autoinmune','Anemia por deficiencia de vitamina B12','Anemia de enfermedad crónica'],correcta:2},
+    {id:'q8',grupo:'A',categoria:'Infectología',texto:'El antibiótico de elección para Streptococcus pneumoniae sensible a penicilina es:',opciones:['Vancomicina','Amoxicilina','Ciprofloxacino','Metronidazol'],correcta:1},
+    // GRUPO B — Anatomía
+    {id:'q9', grupo:'B',categoria:'Anatomía',texto:'El triángulo de Hesselbach está delimitado por:',opciones:['Ligamento inguinal, vasos epigástricos inferiores y borde lateral del recto','Arco crural, vasos ilíacos y psoas mayor','Ligamento de Cooper, vasos femorales y canal inguinal','Aponeurosis del oblicuo externo, recto y vasos femorales'],correcta:0},
+    {id:'q10',grupo:'B',categoria:'Anatomía',texto:'¿Cuál nervio inerva el músculo diafragma?',opciones:['Nervio vago','Nervio frénico','Nervio intercostal XII','Nervio esplénico'],correcta:1},
+    {id:'q11',grupo:'B',categoria:'Anatomía',texto:'La arteria coronaria derecha irriga principalmente:',opciones:['Pared anterior del ventrículo izquierdo','Nodo auriculoventricular y pared posterior','Arteria circunfleja y ramo diagonal','Tronco izquierdo y descendente anterior'],correcta:1},
+    {id:'q12',grupo:'B',categoria:'Anatomía',texto:'En el arco palmar profundo participan principalmente ramas de:',opciones:['Arteria radial','Arteria cubital','Ambas arterias por igual','Arteria braquial'],correcta:0},
+    {id:'q13',grupo:'B',categoria:'Neuroanatomía',texto:'¿Cuántos pares de nervios craneales existen?',opciones:['10','11','12','14'],correcta:2},
+    {id:'q14',grupo:'B',categoria:'Anatomía',texto:'La válvula mitral (bicúspide) está ubicada entre:',opciones:['Aurícula derecha y ventrículo derecho','Aurícula izquierda y ventrículo izquierdo','Ventrículo izquierdo y aorta','Ventrículo derecho y arteria pulmonar'],correcta:1},
+    {id:'q15',grupo:'B',categoria:'Anatomía',texto:'El músculo responsable principal de la dorsiflexión del pie es:',opciones:['Gastrocnemio','Tibial anterior','Peroneo largo','Sóleo'],correcta:1},
+    {id:'q16',grupo:'B',categoria:'Anatomía',texto:'¿Qué estructura pasa por el agujero oval del esfenoides?',opciones:['Nervio óptico (II)','Nervio oculomotor (III)','Nervio mandibular (V3)','Nervio facial (VII)'],correcta:2},
+    // GRUPO C — Fisiología
+    {id:'q17',grupo:'C',categoria:'Fisiología Cardiovascular',texto:'El gasto cardíaco se calcula como:',opciones:['Presión arterial × Resistencia periférica','Volumen sistólico × Frecuencia cardíaca','Precarga + Postcarga','Presión de pulso / Frecuencia cardíaca'],correcta:1},
+    {id:'q18',grupo:'C',categoria:'Fisiología Renal',texto:'El sitio principal de reabsorción del sodio en el nefrón es:',opciones:['Asa de Henle descendente','Túbulo colector','Túbulo proximal','Túbulo distal'],correcta:2},
+    {id:'q19',grupo:'C',categoria:'Fisiología Respiratoria',texto:'La curva de disociación de la hemoglobina se desplaza a la derecha por:',opciones:['Alcalosis respiratoria','Hipotermia','Hipercapnia','Descenso del 2,3-DPG'],correcta:2},
+    {id:'q20',grupo:'C',categoria:'Fisiología Endocrina',texto:'La hormona que promueve la gluconeogénesis hepática en ayuno es:',opciones:['Insulina','Glucagón','Cortisol','B y C son correctas'],correcta:3},
+    {id:'q21',grupo:'C',categoria:'Fisiología Neurológica',texto:'El potencial de acción neuronal es un evento de tipo:',opciones:['Gradual y graduado','Todo o nada','Subumbral lineal','Proporcional al estímulo'],correcta:1},
+    {id:'q22',grupo:'C',categoria:'Fisiología Gastrointestinal',texto:'La secreción de pepsina es estimulada principalmente por:',opciones:['Secretina','Gastrina y acetilcolina','Colecistoquinina','Glucagón intestinal'],correcta:1},
+    {id:'q23',grupo:'C',categoria:'Fisiología Renal',texto:'La aldosterona actúa principalmente en:',opciones:['Asa de Henle','Túbulo proximal','Túbulo colector cortical','Cápsula de Bowman'],correcta:2},
+    {id:'q24',grupo:'C',categoria:'Fisiología Hematológica',texto:'El tiempo de vida media de un eritrocito es aproximadamente:',opciones:['30 días','60 días','120 días','180 días'],correcta:2},
+    // GRUPO D — Patología Molecular
+    {id:'q25',grupo:'D',categoria:'Patología Molecular',texto:'La mutación más frecuente en el cáncer colorrectal esporádico afecta al gen:',opciones:['BRCA1','APC','TP53','KRAS'],correcta:1},
+    {id:'q26',grupo:'D',categoria:'Patología Molecular',texto:'¿Qué mecanismo molecular caracteriza principalmente la inflamación crónica granulomatosa de la tuberculosis?',opciones:['Apoptosis masiva mediada por Fas','Activación de macrófagos por IFN-γ y formación de células epitelioides','Necrosis por coagulación por TNF','Activación del complemento vía lecitina'],correcta:1},
+    {id:'q27',grupo:'D',categoria:'Genética Molecular',texto:'La proteína pRb funciona como supresor tumoral principalmente por:',opciones:['Promover la apoptosis mitocondrial','Inactivar la telomerasa','Inhibir el factor de transcripción E2F en fase G1','Activar las caspasas 3 y 7'],correcta:2},
+    {id:'q28',grupo:'D',categoria:'Patología Molecular',texto:'La necrosis por licuefacción es CARACTERÍSTICA de:',opciones:['Infarto de miocardio','Infarto cerebral','Tuberculosis pulmonar','Gangrena gaseosa'],correcta:1},
+    {id:'q29',grupo:'D',categoria:'Inmunología',texto:'Los anticuerpos que cruzan la placenta y confieren inmunidad pasiva al feto son:',opciones:['IgA','IgM','IgG','IgE'],correcta:2},
+    {id:'q30',grupo:'D',categoria:'Biología Molecular',texto:'¿Qué enzima sintetiza ADN utilizando ARN como molde?',opciones:['ADN polimerasa I','ARN polimerasa','Transcriptasa reversa','Helicasa'],correcta:2},
+    {id:'q31',grupo:'D',categoria:'Patología',texto:'La displasia es un cambio celular caracterizado por:',opciones:['Cambio de un tipo celular diferenciado a otro','Reducción del tamaño celular','Alteración del tamaño, forma y organización celular','Aumento del número de células normales'],correcta:2},
+    {id:'q32',grupo:'D',categoria:'Oncología Molecular',texto:'El oncogén HER2/neu está sobreexpresado aproximadamente en qué porcentaje del cáncer de mama?',opciones:['5%','15-20%','50%','80%'],correcta:1},
+  ],
+  resultados: [
+    {estId:'EST-2024-001', grupo:'A', puntaje:85, correctas:9,  total:10, tiempo:'38:22', fecha:'2024-11-10'},
+    {estId:'EST-2024-002', grupo:'B', puntaje:70, correctas:7,  total:10, tiempo:'42:05', fecha:'2024-11-10'},
+    {estId:'EST-2024-003', grupo:'A', puntaje:55, correctas:6,  total:10, tiempo:'44:58', fecha:'2024-11-10'},
+    {estId:'EST-2024-008', grupo:'A', puntaje:90, correctas:9,  total:10, tiempo:'30:10', fecha:'2024-11-10'},
+    {estId:'EST-2024-010', grupo:'A', puntaje:60, correctas:6,  total:10, tiempo:'43:30', fecha:'2024-11-10'},
+    {estId:'EST-2024-006', grupo:'B', puntaje:80, correctas:8,  total:10, tiempo:'35:00', fecha:'2024-11-10'},
+    {estId:'EST-2024-004', grupo:'C', puntaje:45, correctas:5,  total:10, tiempo:'44:59', fecha:'2024-11-10'},
+    {estId:'EST-2024-007', grupo:'C', puntaje:95, correctas:10, total:10, tiempo:'28:40', fecha:'2024-11-10'},
+    {estId:'EST-2024-005', grupo:'D', puntaje:75, correctas:8,  total:10, tiempo:'39:12', fecha:'2024-11-10'},
+    {estId:'EST-2024-009', grupo:'D', puntaje:65, correctas:7,  total:10, tiempo:'41:00', fecha:'2024-11-10'},
+  ],
+  config: { numPreguntas: 10, tiempoMinutos: 45, notaMinima: 60, aleatorio: true, seguridad: true }
+};
+
+// ============================================================
+//  STATE
+// ============================================================
+let currentUser = null;
+let currentRole = null;
+let examState = { questions:[], current:0, answers:{}, startTime:null, timerInterval:null, timeLeft:0, submitted:false };
+
+// ============================================================
+//  NAV
+// ============================================================
+function showSection(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const sc = document.getElementById('screen-' + name);
+  if(sc) sc.classList.add('active');
+  const map = {'home':0,'docente-login':1,'estudiante-login':2};
+  if(map[name] !== undefined) document.querySelectorAll('.nav-btn')[map[name]]?.classList.add('active');
+  if(name === 'docente') renderDocentePanel();
+}
+
+function showTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId)?.classList.add('active');
+  const idx = {'tab-preguntas':0,'tab-grupos':1,'tab-resultados':2,'tab-config':3}[tabId];
+  document.querySelectorAll('.tab')[idx ?? 0]?.classList.add('active');
+}
+
+// ============================================================
+//  AUTH
+// ============================================================
+function loginDocente() {
+  const email = document.getElementById('docEmail').value.trim();
+  const pass  = document.getElementById('docPass').value;
+  const doc   = DB.docentes.find(d => d.email === email && d.pass === pass);
+  if(!doc){ document.getElementById('docErr').style.display='block'; return; }
+  document.getElementById('docErr').style.display='none';
+  currentUser = doc; currentRole = 'docente';
+  document.getElementById('userArea').style.display='flex';
+  document.getElementById('userNamePill').textContent = doc.nombre;
+  document.getElementById('docenteNombreLabel').textContent = doc.rol + ' — ' + doc.email;
+  document.getElementById('mainNav').style.display='none';
+  showSection('docente');
+  showToast('Bienvenido, ' + doc.nombre,'success');
+}
+
+function loginEstudiante() {
+  const codigo = document.getElementById('estCodigo').value.trim();
+  const pass   = document.getElementById('estPass').value;
+  const grupo  = document.getElementById('estGrupo').value;
+  const est    = DB.estudiantes.find(e => e.id === codigo && e.pass === pass && e.grupo === grupo);
+  if(!est){ document.getElementById('estErr').style.display='block'; return; }
+  document.getElementById('estErr').style.display='none';
+  currentUser = est; currentRole = 'estudiante';
+  document.getElementById('userArea').style.display='flex';
+  document.getElementById('userNamePill').textContent = est.nombre;
+  document.getElementById('mainNav').style.display='none';
+  // Show fullscreen request first, then start exam after entering fullscreen
+  showFullscreenRequest(est);
+}
+
+function logout() {
+  deactivateExamSecurity();
+  if(examState.timerInterval) clearInterval(examState.timerInterval);
+  // Exit fullscreen if active
+  if(isFullscreen()) exitFullscreen();
+  fsExitCount = 0;
+  pendingExamStudent = null;
+  currentUser = null; currentRole = null;
+  examState = { questions:[], current:0, answers:{}, startTime:null, timerInterval:null, timeLeft:0, submitted:false };
+  document.getElementById('userArea').style.display='none';
+  document.getElementById('mainNav').style.display='flex';
+  document.getElementById('screen-estudiante').classList.remove('active');
+  document.getElementById('screen-docente').classList.remove('active');
+  document.getElementById('docEmail').value=''; document.getElementById('docPass').value='';
+  document.getElementById('estCodigo').value=''; document.getElementById('estPass').value='';
+  document.getElementById('estGrupo').value='';
+  document.getElementById('examView').style.display='block';
+  document.getElementById('resultsView').style.display='none';
+  showSection('home');
+}
+
+// ============================================================
+//  FULLSCREEN SYSTEM
+// ============================================================
+let fsExitCount = 0;
+let pendingExamStudent = null;
+
+function showFullscreenRequest(est) {
+  pendingExamStudent = est;
+  const overlay = document.getElementById('fsRequestOverlay');
+  overlay.style.display = 'flex';
+  document.getElementById('fsEnterBtn').onclick = () => {
+    requestFullscreen().then(() => {
+      overlay.style.display = 'none';
+      activateExamSecurity(est);
+      startExam(est);
+      showToast('Examen iniciado, ' + est.nombre, 'success');
+    }).catch(() => {
+      // Browser blocked fullscreen — allow anyway with warning
+      overlay.style.display = 'none';
+      activateExamSecurity(est);
+      startExam(est);
+      showToast('⚠️ Pantalla completa no disponible — modo vigilancia activo', 'warn');
+    });
+  };
+}
+
+function requestFullscreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen)            return el.requestFullscreen();
+  if (el.webkitRequestFullscreen)      return el.webkitRequestFullscreen();
+  if (el.mozRequestFullScreen)         return el.mozRequestFullScreen();
+  if (el.msRequestFullscreen)          return el.msRequestFullscreen();
+  return Promise.reject('not supported');
+}
+
+function exitFullscreen() {
+  if (document.exitFullscreen)            return document.exitFullscreen();
+  if (document.webkitExitFullscreen)      return document.webkitExitFullscreen();
+  if (document.mozCancelFullScreen)       return document.mozCancelFullScreen();
+  if (document.msExitFullscreen)          return document.msExitFullscreen();
+}
+
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement ||
+            document.mozFullScreenElement || document.msFullscreenElement);
+}
+
+// Listen for fullscreen change events
+['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    if (currentRole !== 'estudiante') return;
+    if (examState.submitted) return;
+    if (!isFullscreen()) {
+      fsExitCount++;
+      // Log the infraction
+      DB.fsInfractions = DB.fsInfractions || [];
+      DB.fsInfractions.push({ estId: currentUser?.id, time: new Date().toLocaleTimeString('es-CO'), count: fsExitCount });
+      if (fsExitCount >= 3) {
+        // Suspend exam
+        if (examState.timerInterval) clearInterval(examState.timerInterval);
+        document.getElementById('fsExitWarning').style.display = 'none';
+        document.getElementById('devWarning').classList.add('show');
+        document.getElementById('devWarning').querySelector('.warn-title').textContent = 'Examen Suspendido';
+        document.getElementById('devWarning').querySelector('.warn-msg').textContent =
+          'Saliste de pantalla completa ' + fsExitCount + ' veces. El examen ha sido suspendido automáticamente. Tu docente ha sido notificado.';
+        return;
+      }
+      // Show exit warning
+      const warn = document.getElementById('fsExitWarning');
+      warn.style.display = 'flex';
+      document.getElementById('fsExitCounter').textContent =
+        '⚠️ Salida #' + fsExitCount + ' de 3 — ' + (3 - fsExitCount) + ' restantes antes de la suspensión';
+      document.getElementById('fsReturnBtn').onclick = () => {
+        requestFullscreen().then(() => {
+          warn.style.display = 'none';
+          showToast('Pantalla completa restaurada', 'success');
+        }).catch(() => {
+          warn.style.display = 'none';
+          showToast('⚠️ No se pudo restaurar pantalla completa', 'warn');
+        });
+      };
+    }
+  });
+});
+
+// Block Escape key from exiting fullscreen during exam
+document.addEventListener('keydown', (e) => {
+  if (currentRole === 'estudiante' && e.key === 'Escape') {
+    e.preventDefault();
+    showToast('⚠️ Escape bloqueado en modo examen', 'warn');
+  }
+}, true); // capture phase — fires before browser default
+
+// ============================================================
+//  EXAM SECURITY
+// ============================================================
+function activateExamSecurity(est) {
+  document.body.classList.add('exam-mode');
+  const overlay = document.getElementById('watermarkOverlay');
+  overlay.style.display = 'block';
+  overlay.innerHTML = '';
+  for(let i=0;i<20;i++){
+    const el = document.createElement('div');
+    el.className = 'watermark-text';
+    el.textContent = est.nombre + ' · ' + est.id + ' · Parcial Medicina';
+    el.style.left = (Math.random()*100)+'%';
+    el.style.top  = (Math.random()*120 - 10)+'%';
+    overlay.appendChild(el);
+  }
+  document.addEventListener('contextmenu', blockEvent);
+  document.addEventListener('copy',   blockEvent);
+  document.addEventListener('cut',    blockEvent);
+  document.addEventListener('paste',  blockEvent);
+  document.addEventListener('keydown', blockKeys);
+  document.addEventListener('dragstart', blockEvent);
+  window.addEventListener('beforeprint', blockPrint);
+}
+
+function deactivateExamSecurity() {
+  document.body.classList.remove('exam-mode');
+  document.getElementById('watermarkOverlay').style.display = 'none';
+  document.removeEventListener('contextmenu', blockEvent);
+  document.removeEventListener('copy',   blockEvent);
+  document.removeEventListener('cut',    blockEvent);
+  document.removeEventListener('paste',  blockEvent);
+  document.removeEventListener('keydown', blockKeys);
+  document.removeEventListener('dragstart', blockEvent);
+  window.removeEventListener('beforeprint', blockPrint);
+}
+
+function blockEvent(e) { e.preventDefault(); e.stopPropagation(); showToast('⚠️ Acción bloqueada por seguridad académica','warn'); return false; }
+function blockPrint(e) { e.preventDefault(); showToast('⚠️ Impresión no permitida en modo examen','warn'); }
+function blockKeys(e) {
+  if((e.ctrlKey||e.metaKey) && ['c','v','x','u','p','s','a'].includes(e.key.toLowerCase())){
+    e.preventDefault(); showToast('⚠️ Atajo bloqueado en modo examen','warn');
+  }
+  if(e.key === 'F12'){ e.preventDefault(); showToast('⚠️ DevTools bloqueado','warn'); }
+  if(e.key === 'PrintScreen'){ showToast('⚠️ Captura de pantalla detectada — Se registra la acción','warn'); }
+}
+
+// DevTools detection
+(function(){
+  const threshold = 160;
+  function detect(){
+    if(currentRole === 'estudiante' && (window.outerWidth - window.innerWidth > threshold || window.outerHeight - window.innerHeight > threshold)){
+      document.getElementById('devWarning').classList.add('show');
+    }
+  }
+  setInterval(detect, 1000);
+})();
+
+// ============================================================
+//  EXAM ENGINE
+// ============================================================
+function startExam(est) {
+  const grupoPregs = DB.preguntas.filter(p => p.grupo === est.grupo || p.grupo === 'TODOS');
+  const num = Math.min(DB.config.numPreguntas, grupoPregs.length);
+  const shuffled = [...grupoPregs].sort(() => Math.random() - .5).slice(0, num);
+  examState.questions = shuffled;
+  examState.current   = 0;
+  examState.answers   = {};
+  examState.submitted = false;
+  examState.startTime = Date.now();
+  examState.timeLeft  = DB.config.tiempoMinutos * 60;
+
+  document.getElementById('examNombreEst').textContent = est.nombre;
+  document.getElementById('examGrupoEst').textContent  = 'Grupo ' + est.grupo + ' — ' + DB.grupos[est.grupo].nombre;
+  document.getElementById('qTotal').textContent = shuffled.length;
+  showSection('estudiante');
+  renderQuestion();
+  startTimer();
+}
+
+function startTimer() {
+  if(examState.timerInterval) clearInterval(examState.timerInterval);
+  updateTimerDisplay();
+  examState.timerInterval = setInterval(() => {
+    examState.timeLeft--;
+    updateTimerDisplay();
+    if(examState.timeLeft <= 0){ clearInterval(examState.timerInterval); submitExam(); }
+    if(examState.timeLeft === 300) showToast('⏱ Quedan 5 minutos','warn');
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(examState.timeLeft / 60);
+  const s = examState.timeLeft % 60;
+  const txt = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  document.getElementById('timerDisplay').textContent = txt;
+  const box = document.querySelector('.timer-box');
+  if(examState.timeLeft < 300) box.style.color = 'var(--danger)';
+  else if(examState.timeLeft < 600) box.style.color = 'var(--warn)';
+}
+
+function renderQuestion() {
+  const qs = examState.questions;
+  const idx = examState.current;
+  const q   = qs[idx];
+  const total = qs.length;
+  const answered = Object.keys(examState.answers).length;
+
+  document.getElementById('qActual').textContent      = idx + 1;
+  document.getElementById('qRespondidas').textContent = answered + ' respondidas';
+  document.getElementById('qNumLabel').textContent    = 'PREGUNTA ' + String(idx+1).padStart(2,'0');
+  document.getElementById('qBody').textContent        = q.texto;
+  document.getElementById('examProgressBar').style.width = ((idx+1)/total*100)+'%';
+
+  const letters = ['A','B','C','D','E'];
+  const list = document.getElementById('optionsList');
+  list.innerHTML = '';
+  q.opciones.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    if(examState.answers[idx] === i) btn.classList.add('selected');
+    btn.innerHTML = `<span class="opt-letter">${letters[i]}</span><span>${opt}</span>`;
+    btn.onclick = () => selectAnswer(idx, i);
+    list.appendChild(btn);
+  });
+
+  // Dots
+  const dotNav = document.getElementById('dotNav');
+  dotNav.innerHTML = '';
+  qs.forEach((_,i) => {
+    const d = document.createElement('div');
+    d.style.cssText = `width:8px;height:8px;border-radius:50%;cursor:pointer;transition:all .2s;background:${i===idx?'var(--accent)':examState.answers[i]!==undefined?'var(--success)':'var(--text3)'}`;
+    d.onclick = () => { examState.current = i; renderQuestion(); };
+    dotNav.appendChild(d);
+  });
+
+  document.getElementById('btnAnterior').disabled = idx === 0;
+  document.getElementById('btnAnterior').style.opacity = idx===0?'.4':'1';
+
+  const esUltima = idx === total - 1;
+  const btn = document.getElementById('btnSiguiente');
+  if(esUltima){
+    btn.textContent = '✓ Finalizar Examen';
+    btn.onclick = () => { if(confirm('¿Deseas finalizar y enviar el examen?')) submitExam(); };
+  } else {
+    btn.textContent = 'Siguiente →';
+    btn.onclick = () => navQuestion(1);
+  }
+}
+
+function selectAnswer(qIdx, optIdx) {
+  examState.answers[qIdx] = optIdx;
+  renderQuestion();
+}
+
+function navQuestion(dir) {
+  const newIdx = examState.current + dir;
+  if(newIdx >= 0 && newIdx < examState.questions.length){
+    examState.current = newIdx;
+    renderQuestion();
+  }
+}
+
+function submitExam() {
+  if(examState.submitted) return;
+  examState.submitted = true;
+  clearInterval(examState.timerInterval);
+  const qs = examState.questions;
+  let correctas = 0;
+  qs.forEach((q, i) => { if(examState.answers[i] === q.correcta) correctas++; });
+  const puntaje = Math.round((correctas / qs.length) * 100);
+  const elapsed = DB.config.tiempoMinutos * 60 - examState.timeLeft;
+  const mins = Math.floor(elapsed/60), secs = elapsed%60;
+  const tiempoStr = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+  const aprobado = puntaje >= DB.config.notaMinima;
+
+  // Save result
+  DB.resultados.push({
+    estId: currentUser.id, grupo: currentUser.grupo,
+    puntaje, correctas, total: qs.length, tiempo: tiempoStr, fecha: new Date().toLocaleDateString('es-CO')
+  });
+
+  document.getElementById('examView').style.display = 'none';
+  document.getElementById('resultsView').style.display = 'block';
+  document.getElementById('resScore').textContent = puntaje + '%';
+  document.getElementById('resScore').style.color = aprobado ? 'var(--success)' : 'var(--danger)';
+  document.getElementById('resTitle').textContent = aprobado ? '🎉 ¡Examen Aprobado!' : '📚 No Aprobado';
+  document.getElementById('resSub').textContent = aprobado ? 'Felicitaciones, superaste la nota mínima de ' + DB.config.notaMinima + '%' : 'No alcanzaste el ' + DB.config.notaMinima + '% requerido. Puedes solicitar retroalimentación.';
+  document.getElementById('resCorrectas').textContent = correctas;
+  document.getElementById('resIncorrectas').textContent = qs.length - correctas;
+  document.getElementById('resTiempo').textContent = tiempoStr;
+}
+
+function openReview() {
+  const qs = examState.questions;
+  let html = '';
+  qs.forEach((q,i) => {
+    const resp = examState.answers[i];
+    const ok = resp === q.correcta;
+    html += `<div class="review-q">
+      <div class="review-q-text"><strong>P${i+1}.</strong> ${q.texto}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="review-ans ${ok?'review-correct':'review-wrong'}">
+          ${resp !== undefined ? 'Tu respuesta: ' + ['A','B','C','D'][resp] + '. ' + q.opciones[resp] : 'Sin responder'}
+        </span>
+        ${!ok?`<span class="review-ans review-correct">Correcta: ${['A','B','C','D'][q.correcta]}. ${q.opciones[q.correcta]}</span>`:''}
+      </div>
+    </div>`;
+  });
+  document.getElementById('reviewContent').innerHTML = html;
+  document.getElementById('reviewModal').classList.add('show');
+}
+function closeModal() { document.getElementById('reviewModal').classList.remove('show'); }
+
+// ============================================================
+//  DOCENTE PANEL
+// ============================================================
+function renderDocentePanel() {
+  renderBancoPreguntas();
+  renderGroups();
+  renderResultados();
+  renderStats();
+}
+
+function renderBancoPreguntas() {
+  const filtro = document.getElementById('filtroGrupoPreg')?.value || 'TODOS';
+  const lista = document.getElementById('bancoLista');
+  if(!lista) return;
+  const pregs = filtro === 'TODOS' ? DB.preguntas : DB.preguntas.filter(p => p.grupo === filtro);
+  if(!pregs.length){ lista.innerHTML = '<p style="color:var(--text3);font-size:14px;padding:1rem 0">No hay preguntas para este grupo.</p>'; return; }
+  lista.innerHTML = pregs.map(q => `
+    <div class="q-item">
+      <div style="flex:1">
+        <div class="q-text">${q.texto}</div>
+        <div class="q-meta">Grupo ${q.grupo} · ${q.categoria} · ${q.opciones.length} opciones · ✓ ${['A','B','C','D'][q.correcta]}</div>
+      </div>
+      <div class="q-actions">
+        <button class="btn-sm btn-danger" onclick="eliminarPregunta('${q.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function guardarPregunta() {
+  const texto = document.getElementById('nuevoPregTexto').value.trim();
+  const grupo = document.getElementById('nuevoPregGrupo').value;
+  const cat   = document.getElementById('nuevoPregCategoria').value.trim() || 'General';
+  const opts  = ['opt0','opt1','opt2','opt3'].map(id => document.getElementById(id).value.trim());
+  const correctaEl = document.querySelector('input[name="correcta"]:checked');
+  if(!texto || opts.some(o=>!o) || !correctaEl){ showToast('Completa todos los campos y marca la respuesta correcta','error'); return; }
+  const newQ = { id:'q'+Date.now(), grupo, categoria:cat, texto, opciones:opts, correcta:parseInt(correctaEl.value) };
+  DB.preguntas.push(newQ);
+  document.getElementById('nuevoPregTexto').value='';
+  document.getElementById('nuevoPregCategoria').value='';
+  ['opt0','opt1','opt2','opt3'].forEach(id => document.getElementById(id).value='');
+  if(correctaEl) correctaEl.checked=false;
+  renderBancoPreguntas();
+  showToast('Pregunta guardada en el banco','success');
+}
+
+function eliminarPregunta(id) {
+  if(!confirm('¿Eliminar esta pregunta?')) return;
+  DB.preguntas = DB.preguntas.filter(p => p.id !== id);
+  renderBancoPreguntas();
+  showToast('Pregunta eliminada','warn');
+}
+
+function renderGroups() {
+  const grid = document.getElementById('groupsGrid');
+  if(!grid) return;
+  const emojis = {A:'🩺',B:'🦴',C:'🫀',D:'🔬'};
+  grid.innerHTML = Object.entries(DB.grupos).map(([key,g]) => {
+    const count = DB.estudiantes.filter(e => e.grupo === key).length;
+    const qCount = DB.preguntas.filter(p => p.grupo === key || p.grupo === 'TODOS').length;
+    return `<div class="group-card" onclick="showGroupDetail('${key}')">
+      <div style="font-size:28px;margin-bottom:8px">${emojis[key]||'👥'}</div>
+      <div class="group-name">Grupo ${key} — ${g.nombre}</div>
+      <div class="group-count">${count} estudiantes · ${qCount} preguntas</div>
+      <div style="margin-top:8px"><span class="badge badge-blue">${g.descripcion}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function showGroupDetail(key) {
+  document.querySelectorAll('.group-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.group-card').forEach(c => { if(c.querySelector('.group-name')?.textContent.includes('Grupo '+key)) c.classList.add('selected'); });
+  const g = DB.grupos[key];
+  const ests = DB.estudiantes.filter(e => e.grupo === key);
+  document.getElementById('groupDetailTitle').textContent = 'Grupo ' + key + ' — ' + g.nombre;
+  document.getElementById('groupDetailBadge').textContent = ests.length + ' estudiantes';
+  document.getElementById('groupDetailBadge').className = 'badge badge-blue';
+  const rows = ests.map(e => {
+    const res = DB.resultados.find(r => r.estId === e.id);
+    return `<tr>
+      <td>${e.nombre}</td>
+      <td style="color:var(--text2)">${e.id}</td>
+      <td>${res ? `<span class="score-num ${res.puntaje>=DB.config.notaMinima?'score-pass':'score-fail'}">${res.puntaje}%</span>` : '<span style="color:var(--text3)">Pendiente</span>'}</td>
+      <td>${res ? `<span class="badge ${res.puntaje>=DB.config.notaMinima?'badge-green':'badge-red'}">${res.puntaje>=DB.config.notaMinima?'Aprobado':'Reprobado'}</span>` : '<span class="badge badge-warn">Sin presentar</span>'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('groupStudentsList').innerHTML = `
+    <table class="student-table">
+      <thead><tr><th>Nombre</th><th>Código</th><th>Puntaje</th><th>Estado</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderResultados() {
+  const filtro = document.getElementById('filtroGrupoRes')?.value || 'TODOS';
+  const tbody  = document.getElementById('resultadosTbody');
+  if(!tbody) return;
+  const res = filtro === 'TODOS' ? DB.resultados : DB.resultados.filter(r => r.grupo === filtro);
+  tbody.innerHTML = res.map(r => {
+    const est = DB.estudiantes.find(e => e.id === r.estId);
+    const pct = Math.round(r.correctas / r.total * 100);
+    const pass = r.puntaje >= DB.config.notaMinima;
+    return `<tr>
+      <td>${est ? est.nombre : r.estId}</td>
+      <td><span class="badge badge-blue">Grupo ${r.grupo}</span></td>
+      <td><span class="score-num ${pass?'score-pass':'score-fail'}">${r.puntaje}%</span></td>
+      <td>${r.correctas}/${r.total}</td>
+      <td><span class="badge ${pass?'badge-green':'badge-red'}">${pass?'Aprobado':'Reprobado'}</span></td>
+      <td style="min-width:100px">
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </td>
+      <td><button class="btn-sm btn-accent" onclick="showToast('Informe de ${est?.nombre||r.estId}: ${r.puntaje}% en ${r.tiempo}','success')">Ver</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:2rem">No hay resultados para este filtro</td></tr>';
+}
+
+function renderStats() {
+  const row = document.getElementById('statsRow');
+  if(!row) return;
+  const total = DB.resultados.length;
+  const aprobados = DB.resultados.filter(r => r.puntaje >= DB.config.notaMinima).length;
+  const promedio = total ? Math.round(DB.resultados.reduce((s,r) => s+r.puntaje, 0)/total) : 0;
+  const infractions = (DB.fsInfractions || []).length;
+  row.innerHTML = `
+    <div class="stat-card"><div class="stat-card-num" style="color:var(--accent)">${DB.estudiantes.length}</div><div class="stat-card-label">Estudiantes registrados</div></div>
+    <div class="stat-card"><div class="stat-card-num" style="color:var(--success)">${aprobados}</div><div class="stat-card-label">Estudiantes aprobados</div></div>
+    <div class="stat-card"><div class="stat-card-num" style="color:var(--danger)">${total - aprobados}</div><div class="stat-card-label">Estudiantes reprobados</div></div>
+    <div class="stat-card"><div class="stat-card-num" style="color:var(--warn)">${promedio}%</div><div class="stat-card-label">Promedio general</div></div>`;
+
+  // Infractions panel
+  const infList = DB.fsInfractions || [];
+  if(infList.length > 0) {
+    const infHtml = infList.map(inf => {
+      const est = DB.estudiantes.find(e => e.id === inf.estId);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(240,92,122,0.06);border:1px solid rgba(240,92,122,0.2);border-radius:8px;margin-bottom:6px;font-size:13px;">
+        <span>⚠️ <strong>${est?est.nombre:inf.estId}</strong> salió de pantalla completa</span>
+        <span style="color:var(--text3)">${inf.time} — Salida #${inf.count}</span>
+      </div>`;
+    }).join('');
+    const existing = document.getElementById('infractionsPanel');
+    const panel = existing || document.createElement('div');
+    panel.id = 'infractionsPanel';
+    panel.style.cssText = 'margin-top:1.5rem';
+    panel.innerHTML = `<div class="card"><div class="card-header"><div class="card-h">⚠️ Alertas de Seguridad — Salidas de Pantalla Completa</div><span class="badge badge-red">${infList.length} eventos</span></div>${infHtml}</div>`;
+    if(!existing) row.parentNode.insertBefore(panel, row.nextSibling);
+  }
+}
+
+function guardarConfig() {
+  DB.config.numPreguntas  = parseInt(document.getElementById('configNumPreg').value)||10;
+  DB.config.tiempoMinutos = parseInt(document.getElementById('configTiempo').value)||45;
+  DB.config.notaMinima    = parseInt(document.getElementById('configNotaMin').value)||60;
+  DB.config.aleatorio     = document.getElementById('configAleatorio').checked;
+  DB.config.seguridad     = document.getElementById('configSeguridad').checked;
+  showToast('Configuración guardada exitosamente','success');
+}
+
+// ============================================================
+//  TOAST
+// ============================================================
+let toastTimer;
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = 'toast', 3500);
+}
+
+// Observe radio buttons to highlight correct answer label
+document.querySelectorAll('input[name="correcta"]').forEach((r, i) => {
+  r.addEventListener('change', () => {
+    document.querySelectorAll('.option-label').forEach((l,j) => {
+      l.className = 'option-label' + (j === parseInt(r.value) ? ' correct' : '');
+    });
+  });
+});
+</script>
+</body>
+</html>
